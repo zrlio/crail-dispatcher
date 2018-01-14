@@ -31,8 +31,6 @@ public class PutGetRequest implements NaRPCMessage {
 	
 	@Override
 	public void update(ByteBuffer buffer) throws IOException {
-		LOG.info("serialization buffer ");
-		
 		this.type = buffer.getShort();
 		this.srcSize = buffer.getInt();
 		byte[] srcBuffer = new byte[srcSize];
@@ -46,8 +44,6 @@ public class PutGetRequest implements NaRPCMessage {
 
 	@Override
 	public int write(ByteBuffer buffer) throws IOException {
-		LOG.info("deserializing buffer ");
-		
 		buffer.putShort(type);
 		byte srcBuffer[] = srcFile.getBytes();
 		buffer.putInt(srcBuffer.length);
