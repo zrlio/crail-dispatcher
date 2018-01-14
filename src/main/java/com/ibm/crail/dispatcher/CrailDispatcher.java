@@ -5,6 +5,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
 import java.util.concurrent.Future;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -12,6 +13,9 @@ import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.ibm.crail.CrailBuffer;
 import com.ibm.crail.CrailFS;
 import com.ibm.crail.CrailInputStream;
@@ -21,23 +25,23 @@ import com.ibm.crail.CrailOutputStream;
 import com.ibm.crail.CrailResult;
 import com.ibm.crail.CrailStorageClass;
 import com.ibm.crail.conf.CrailConfiguration;
-import com.ibm.crail.utils.CrailUtils;
 import com.ibm.narpc.NaRPCServerChannel;
 import com.ibm.narpc.NaRPCServerEndpoint;
 import com.ibm.narpc.NaRPCServerGroup;
 import com.ibm.narpc.NaRPCService;
 
 public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetResponse>{
+	private static final Logger LOG = LoggerFactory.getLogger("com.ibm.crail.dispatcher");
+	
 	private NaRPCServerGroup<PutGetRequest, PutGetResponse> serverGroup;
 	private NaRPCServerEndpoint<PutGetRequest, PutGetResponse> serverEndpoint;
 	private CrailFS crailFS;
 	private CrailBuffer buffer;
 	
-	public CrailDispatcher() throws Exception{
+	public CrailDispatcher(InetSocketAddress address) throws Exception{
 		this.serverGroup = new NaRPCServerGroup<PutGetRequest, PutGetResponse>(this, 16, 1024, true);
 		this.serverEndpoint = serverGroup.createServerEndpoint();
-		InetSocketAddress inetSocketAddress = CrailUtils.getNameNodeAddress();
-		serverEndpoint.bind(inetSocketAddress);	
+		serverEndpoint.bind(address);	
 		CrailConfiguration conf = new CrailConfiguration();
 		this.crailFS = CrailFS.newInstance(conf);
 		buffer = crailFS.allocateBuffer();
@@ -64,6 +68,8 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	}
 	
 	private PutGetResponse put(String srcFile, String dstFile) throws Exception {
+		LOG.info("PUT, srcFile " + srcFile + ", dstFile " + dstFile);
+		
 		RandomAccessFile _srcFile     = new RandomAccessFile(srcFile, "rw");
 		FileChannel srcChannel = _srcFile.getChannel();		
 		CrailOutputStream dstChannel = crailFS.create(dstFile, CrailNodeType.DATAFILE, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get().asFile().getDirectOutputStream(0);
@@ -83,6 +89,8 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	}
 	
 	private PutGetResponse get(String srcFile, String dstFile) throws Exception{
+		LOG.info("GET, srcFile " + srcFile + ", dstFile " + dstFile);
+		
 		CrailInputStream srcChannel = crailFS.lookup(srcFile).get().asFile().getDirectInputStream(0);
 		RandomAccessFile _dstFile     = new RandomAccessFile(dstFile, "rw");
 		FileChannel dstChannel = _dstFile.getChannel();
@@ -112,6 +120,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	
 	public static void main(String args[]) throws Exception{
 		int threadCount = 1;
+		InetSocketAddress address = new InetSocketAddress("localhost", 2345);
 		
 		if (args != null) {
 			Option threadOption = Option.builder("n").desc("number of threads").hasArg().build();
@@ -131,7 +140,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 			}
 		}
 		
-		CrailDispatcher dispatcher = new CrailDispatcher();
+		CrailDispatcher dispatcher = new CrailDispatcher(address);
 		dispatcher.run();
 	}
 }

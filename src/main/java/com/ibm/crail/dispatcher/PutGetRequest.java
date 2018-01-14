@@ -3,9 +3,14 @@ package com.ibm.crail.dispatcher;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.ibm.narpc.NaRPCMessage;
 
 public class PutGetRequest implements NaRPCMessage {
+	private static final Logger LOG = LoggerFactory.getLogger("com.ibm.crail.dispatcher");
+	
 	public static final short CMD_PUT = 0;
 	public static final short CMD_GET = 1;
 	
@@ -26,6 +31,8 @@ public class PutGetRequest implements NaRPCMessage {
 	
 	@Override
 	public void update(ByteBuffer buffer) throws IOException {
+		LOG.info("serialization buffer ");
+		
 		this.type = buffer.getShort();
 		this.srcSize = buffer.getInt();
 		byte[] srcBuffer = new byte[srcSize];
@@ -39,14 +46,17 @@ public class PutGetRequest implements NaRPCMessage {
 
 	@Override
 	public int write(ByteBuffer buffer) throws IOException {
+		LOG.info("deserializing buffer ");
+		
 		buffer.putShort(type);
 		byte srcBuffer[] = srcFile.getBytes();
 		buffer.putInt(srcBuffer.length);
 		buffer.put(srcBuffer);
 		byte dstBuffer[] = dstFile.getBytes();
 		buffer.putInt(dstBuffer.length);
-		buffer.put(dstBuffer);		
-		return 0;
+		buffer.put(dstBuffer);
+		
+		return Short.BYTES + Integer.BYTES + srcBuffer.length + Integer.BYTES + dstBuffer.length;
 	}
 
 	public short getType() {
