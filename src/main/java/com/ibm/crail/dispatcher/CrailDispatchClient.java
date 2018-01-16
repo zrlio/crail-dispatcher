@@ -45,6 +45,8 @@ public class CrailDispatchClient {
 						type = PutGetRequest.CMD_PUT;
 					} else if (_type.equalsIgnoreCase("get")){
 						type = PutGetRequest.CMD_GET;
+					} else if (_type.equalsIgnoreCase("del")){
+						type = PutGetRequest.CMD_DEL;
 					}
 				}	
 				if (line.hasOption(srcOption.getOpt())) {

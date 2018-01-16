@@ -54,17 +54,22 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 
 	@Override
 	public PutGetResponse processRequest(PutGetRequest request) {
+		PutGetResponse ret = PutGetResponse.ERROR;
+		long start = System.nanoTime();
 		try {
 			if (request.getType() == PutGetRequest.CMD_PUT){
-				return put(request.getSrcFile(), request.getDstFile());
+				ret = put(request.getSrcFile(), request.getDstFile());
 			} else if (request.getType() == PutGetRequest.CMD_GET){
-				return get(request.getSrcFile(), request.getDstFile());
-			} else {
-				return PutGetResponse.ERROR;
-			}
+				ret = get(request.getSrcFile(), request.getDstFile());
+			} else if (request.getType() == PutGetRequest.CMD_DEL){
+				ret = del(request.getSrcFile());
+			} 
 		} catch(Exception e){
-			return PutGetResponse.ERROR;
 		}
+		long end = System.nanoTime();
+		long exeuctionTime = (end - start)/1000;	
+		LOG.info("executionTime " + exeuctionTime);
+		return ret;
 	}
 	
 	private PutGetResponse put(String srcFile, String dstFile) throws Exception {
@@ -108,6 +113,14 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		
 		srcChannel.close();
 		dstChannel.close();
+		
+		return PutGetResponse.OK;
+	}
+	
+	private PutGetResponse del(String srcFile) throws Exception{
+		LOG.info("DEL, srcFile " + srcFile);
+		
+		crailFS.delete(srcFile, true).get();
 		
 		return PutGetResponse.OK;
 	}	
