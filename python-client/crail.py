@@ -90,7 +90,7 @@ def put(socket, src_filename, dst_filename, ticket):
   pkt = pack_msg(src_filename, dst_filename, ticket, CMD_PUT) 
 
   socket.sendall(pkt) 
-  data = socket.recv(4)
+  data = socket.recv(2)
 
   return data
 
@@ -108,9 +108,10 @@ def get(socket, src_filename, dst_filename, ticket):
   pkt = pack_msg(src_filename, dst_filename, ticket, CMD_GET) 
 
   socket.sendall(pkt) 
-  data = socket.recv(4)
+  data = socket.recv(2)
 
   return data
+
 
 def delete(socket, src_filename, ticket):  
   '''
@@ -129,7 +130,7 @@ def delete(socket, src_filename, ticket):
   pkt = msg_packer.pack(*msg)
 
   socket.sendall(pkt) 
-  data = socket.recv(4)
+  data = socket.recv(2)
 
   return data
 
@@ -147,12 +148,10 @@ def create_dir(socket, src_filename, ticket):
   msg_packer = struct.Struct("!iqhi" + str(src_filename_len) + "si")
   msg_len = 2 + 4 + src_filename_len + 4 
 
-  print "crail.py: create dir...", src_filename
-
   msg = (msg_len, ticket, CMD_CREATE_DIR, src_filename_len, src_filename, 0)
   pkt = msg_packer.pack(*msg)
 
   socket.sendall(pkt) 
-  data = socket.recv(4)
+  data = socket.recv(2)
 
   return data
