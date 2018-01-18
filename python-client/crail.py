@@ -17,6 +17,8 @@ CMD_GET = 1
 CMD_DEL = 2
 CMD_CREATE_DIR = 3
 
+RESPONSE_BYTES = 4 + 8 + 2 # INT (msg_len) + LONG (ticket) + SHORT (OK or ERROR)
+
 def setup_dirs():
   call(["mkdir", "/tmp/hugepages"]) 
   call(["mkdir", "/tmp/hugepages/cache"]) 
@@ -90,7 +92,7 @@ def put(socket, src_filename, dst_filename, ticket):
   pkt = pack_msg(src_filename, dst_filename, ticket, CMD_PUT) 
 
   socket.sendall(pkt) 
-  data = socket.recv(2)
+  data = socket.recv(RESPONSE_BYTES)
 
   return data
 
@@ -108,7 +110,7 @@ def get(socket, src_filename, dst_filename, ticket):
   pkt = pack_msg(src_filename, dst_filename, ticket, CMD_GET) 
 
   socket.sendall(pkt) 
-  data = socket.recv(2)
+  data = socket.recv(RESPONSE_BYTES)
 
   return data
 
@@ -130,7 +132,7 @@ def delete(socket, src_filename, ticket):
   pkt = msg_packer.pack(*msg)
 
   socket.sendall(pkt) 
-  data = socket.recv(2)
+  data = socket.recv(RESPONSE_BYTES)
 
   return data
 
@@ -152,6 +154,6 @@ def create_dir(socket, src_filename, ticket):
   pkt = msg_packer.pack(*msg)
 
   socket.sendall(pkt) 
-  data = socket.recv(2)
+  data = socket.recv(RESPONSE_BYTES)
 
   return data
