@@ -4,6 +4,7 @@ import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Future;
 
 import org.apache.commons.cli.CommandLine;
@@ -36,15 +37,24 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	private NaRPCServerGroup<PutGetRequest, PutGetResponse> serverGroup;
 	private NaRPCServerEndpoint<PutGetRequest, PutGetResponse> serverEndpoint;
 	private CrailFS crailFS;
-	private CrailBuffer buffer;
+	private CrailBuffer[] bufferList;
+	private ArrayBlockingQueue<CrailBuffer> pendingBuffers;
+	private ArrayBlockingQueue<Future<CrailResult>> pendingFutures;
 	
-	public CrailDispatcher(InetSocketAddress address) throws Exception{
+	public CrailDispatcher(InetSocketAddress address, int bufferCount) throws Exception{
+		LOG.info("starting new crail dispatcher, address " + address.toString() + ", bufferCount " + bufferCount);
 		this.serverGroup = new NaRPCServerGroup<PutGetRequest, PutGetResponse>(this, 16, 1024, true);
 		this.serverEndpoint = serverGroup.createServerEndpoint();
 		serverEndpoint.bind(address);	
 		CrailConfiguration conf = new CrailConfiguration();
 		this.crailFS = CrailFS.newInstance(conf);
-		buffer = crailFS.allocateBuffer();
+		this.bufferList = new CrailBuffer[bufferCount];
+		this.pendingBuffers = new ArrayBlockingQueue<CrailBuffer>(bufferCount);
+		this.pendingFutures = new ArrayBlockingQueue<Future<CrailResult>>(bufferCount);
+		for (int i = 0; i < bufferCount; i++){
+			CrailBuffer buffer = crailFS.allocateBuffer();
+			bufferList[i] = buffer;
+		}
 	}
 	
 	@Override
@@ -81,12 +91,46 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		FileChannel srcChannel = _srcFile.getChannel();		
 		CrailOutputStream dstChannel = crailFS.create(dstFile, CrailNodeType.DATAFILE, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get().asFile().getDirectOutputStream(0);
 		
-		buffer.clear();
-		while(srcChannel.read(buffer.getByteBuffer()) > 0){
-			buffer.flip();
-			dstChannel.write(buffer).get();
-			
+		boolean isDone = false;
+		for (int i = 0; i < bufferList.length; i++){
+			CrailBuffer buffer = bufferList[i];
 			buffer.clear();
+			if (srcChannel.read(buffer.getByteBuffer()) < 0){
+				isDone = true;
+				break;
+			} 
+			
+			buffer.flip();
+			Future<CrailResult> future = dstChannel.write(buffer);
+			pendingBuffers.add(buffer);
+			pendingFutures.add(future);
+		}
+		
+		while(!isDone){
+			Future<CrailResult> future = pendingFutures.poll();
+			future.get();
+			CrailBuffer buffer = pendingBuffers.poll();
+			buffer.clear();
+			
+			if (srcChannel.read(buffer.getByteBuffer()) < 0){
+				isDone = true;
+				break;
+			} 
+			
+			buffer.flip();
+			future = dstChannel.write(buffer);
+			pendingBuffers.add(buffer);
+			pendingFutures.add(future);			
+		}
+		
+		while(!pendingFutures.isEmpty()){
+			Future<CrailResult> future = pendingFutures.poll();
+			future.get();
+			CrailBuffer buffer = pendingBuffers.poll();
+		}
+		
+		if (!pendingFutures.isEmpty() || !pendingBuffers.isEmpty()){
+			throw new Exception("Pending operations left");
 		}
 		
 		srcChannel.close();
@@ -102,16 +146,49 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		RandomAccessFile _dstFile     = new RandomAccessFile(dstFile, "rw");
 		FileChannel dstChannel = _dstFile.getChannel();
 		
-		buffer.clear();
-		Future<CrailResult> future = srcChannel.read(buffer);
-		while(future != null){
+		boolean isDone = false;
+		for (int i = 0; i < bufferList.length; i++){
+			CrailBuffer buffer = bufferList[i];
+			buffer.clear();
+			Future<CrailResult> future = srcChannel.read(buffer);
+			if (future == null){
+				isDone = true;
+				break;
+			} 
+			
+			pendingFutures.add(future);
+			pendingBuffers.add(buffer);
+		}
+		
+		while(!isDone){
+			Future<CrailResult> future = pendingFutures.poll();
 			future.get();
+			CrailBuffer buffer = pendingBuffers.poll();
 			buffer.flip();
 			dstChannel.write(buffer.getByteBuffer());
-			
+
 			buffer.clear();
-			future = srcChannel.read(buffer);			
+			future = srcChannel.read(buffer);
+			if (future == null){
+				isDone = true;
+				break;
+			} 
+			
+			pendingFutures.add(future);
+			pendingBuffers.add(buffer);			
 		}
+		
+		while(!pendingFutures.isEmpty()){
+			Future<CrailResult> future = pendingFutures.poll();
+			future.get();
+			CrailBuffer buffer = pendingBuffers.poll();
+			buffer.flip();
+			dstChannel.write(buffer.getByteBuffer());
+		}
+		
+		if (!pendingFutures.isEmpty() || !pendingBuffers.isEmpty()){
+			throw new Exception("Pending operations left");
+		}		
 		
 		srcChannel.close();
 		dstChannel.close();
@@ -143,12 +220,15 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	
 	public static void main(String args[]) throws Exception{
 		int threadCount = 1;
+		int bufferCount = 1;
 		InetSocketAddress address = new InetSocketAddress("localhost", 2345);
 		
 		if (args != null) {
 			Option threadOption = Option.builder("n").desc("number of threads").hasArg().build();
+			Option bufferOption = Option.builder("d").desc("number of buffers").hasArg().build();
 			Options options = new Options();
 			options.addOption(threadOption);
+			options.addOption(bufferOption);
 			CommandLineParser parser = new DefaultParser();
 
 			try {
@@ -156,6 +236,9 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 				if (line.hasOption(threadOption.getOpt())) {
 					threadCount = Integer.parseInt(line.getOptionValue(threadOption.getOpt()));
 				}	
+				if (line.hasOption(bufferOption.getOpt())) {
+					bufferCount = Integer.parseInt(line.getOptionValue(bufferOption.getOpt()));
+				}				
 			} catch (ParseException e) {
 				HelpFormatter formatter = new HelpFormatter();
 				formatter.printHelp("TCP RPC", options);
@@ -163,7 +246,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 			}
 		}
 		
-		CrailDispatcher dispatcher = new CrailDispatcher(address);
+		CrailDispatcher dispatcher = new CrailDispatcher(address, bufferCount);
 		dispatcher.run();
 	}
 }
