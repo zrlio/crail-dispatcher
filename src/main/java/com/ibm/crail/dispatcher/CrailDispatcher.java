@@ -77,6 +77,8 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 				ret = create_dir(request.getSrcFile());
 			} 
 		} catch(Exception e){
+			LOG.info("Error, exception message " + e.getMessage());
+			e.printStackTrace();
 		}
 		long end = System.nanoTime();
 		long exeuctionTime = (end - start)/1000;	
