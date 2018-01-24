@@ -75,6 +75,8 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 				ret = del(request.getSrcFile());
 			} else if (request.getType() == PutGetRequest.CMD_CREATE_DIR){
 				ret = create_dir(request.getSrcFile());
+			} else if (request.getType() == PutGetRequest.CMD_CLOSE){
+				ret = close();
 			} 
 		} catch(Exception e){
 			LOG.info("Error, exception message " + e.getMessage());
@@ -210,6 +212,14 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		LOG.info("CREATE DIR, srcFile " + srcFile);
 		
 		crailFS.create(srcFile, CrailNodeType.DIRECTORY, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get();
+		
+		return PutGetResponse.OK;
+	}	
+
+	private PutGetResponse close() throws Exception{
+		LOG.info("CLOSE CrailFS");
+		
+		crailFS.close();
 		
 		return PutGetResponse.OK;
 	}	

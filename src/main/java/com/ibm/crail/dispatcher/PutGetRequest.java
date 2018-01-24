@@ -15,6 +15,7 @@ public class PutGetRequest implements NaRPCMessage {
 	public static final short CMD_GET = 1;
 	public static final short CMD_DEL = 2;
 	public static final short CMD_CREATE_DIR = 3;
+	public static final short CMD_CLOSE = 4;
 	
 	private short type;
 	private int srcSize;
