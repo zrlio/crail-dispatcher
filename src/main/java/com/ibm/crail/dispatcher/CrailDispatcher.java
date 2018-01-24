@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.ibm.crail.CrailBuffer;
 import com.ibm.crail.CrailFS;
+import com.ibm.crail.CrailFile;
 import com.ibm.crail.CrailInputStream;
 import com.ibm.crail.CrailLocationClass;
 import com.ibm.crail.CrailNodeType;
@@ -91,9 +92,11 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	private PutGetResponse put(String srcFile, String dstFile) throws Exception {
 		LOG.info("PUT, srcFile " + srcFile + ", dstFile " + dstFile);
 		
-		RandomAccessFile _srcFile     = new RandomAccessFile(srcFile, "rw");
+		RandomAccessFile _srcFile = new RandomAccessFile(srcFile, "rw");
 		FileChannel srcChannel = _srcFile.getChannel();		
-		CrailOutputStream dstChannel = crailFS.create(dstFile, CrailNodeType.DATAFILE, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get().asFile().getDirectOutputStream(0);
+		CrailFile file = crailFS.create(dstFile, CrailNodeType.DATAFILE, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get().asFile();
+		file.syncDir();
+		CrailOutputStream dstChannel = file.getDirectOutputStream(0);
 		
 		boolean isDone = false;
 		for (int i = 0; i < bufferList.length; i++){
@@ -203,7 +206,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	private PutGetResponse del(String srcFile) throws Exception{
 		LOG.info("DEL, srcFile " + srcFile);
 		
-		crailFS.delete(srcFile, true).get();
+		crailFS.delete(srcFile, true).get().syncDir();
 		
 		return PutGetResponse.OK;
 	}	
@@ -211,7 +214,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	private PutGetResponse create_dir(String srcFile) throws Exception{
 		LOG.info("CREATE DIR, srcFile " + srcFile);
 		
-		crailFS.create(srcFile, CrailNodeType.DIRECTORY, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get();
+		crailFS.create(srcFile, CrailNodeType.DIRECTORY, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get().syncDir();
 		
 		return PutGetResponse.OK;
 	}	
