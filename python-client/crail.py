@@ -54,20 +54,18 @@ def launch_dispatcher(crail_home_path):
   return p
 
 def connect():
-  try:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((HOSTNAME, PORT))
-  except socket.error as e:
-    if e.errno == errno.ECONNREFUSED:
+  connected = 1
+  while connected != 0:
+    try:
+      s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+      connected = s.connect_ex((HOSTNAME, PORT))
+    except:
       print "Connection refused -- did you launch_dispatcher?"
-      return None
-    else:
-      raise
-      return None
-  print "Connected to crail dispatcher." 
+      continue;
+  print "Connected to crail dispatcher."
 
   return s
- 
+
  
 def pack_msg(src_filename, dst_filename, ticket, cmd):
   src_filename_len = len(src_filename) 
@@ -177,6 +175,7 @@ def close(socket, ticket, p):
   socket.sendall(pkt) 
   data = socket.recv(RESPONSE_BYTES)
 
-  p.terminate()
+  socket.close()
+  p.kill()
 
   return data
