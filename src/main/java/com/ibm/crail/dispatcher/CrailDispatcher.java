@@ -17,16 +17,16 @@ import org.apache.commons.cli.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.ibm.crail.CrailBuffer;
-import com.ibm.crail.CrailFS;
-import com.ibm.crail.CrailFile;
-import com.ibm.crail.CrailInputStream;
-import com.ibm.crail.CrailLocationClass;
-import com.ibm.crail.CrailNodeType;
-import com.ibm.crail.CrailOutputStream;
-import com.ibm.crail.CrailResult;
-import com.ibm.crail.CrailStorageClass;
-import com.ibm.crail.conf.CrailConfiguration;
+import org.apache.crail.CrailBuffer;
+import org.apache.crail.CrailStore;
+import org.apache.crail.CrailFile;
+import org.apache.crail.CrailInputStream;
+import org.apache.crail.CrailLocationClass;
+import org.apache.crail.CrailNodeType;
+import org.apache.crail.CrailOutputStream;
+import org.apache.crail.CrailResult;
+import org.apache.crail.CrailStorageClass;
+import org.apache.crail.conf.CrailConfiguration;
 import com.ibm.narpc.NaRPCServerChannel;
 import com.ibm.narpc.NaRPCServerEndpoint;
 import com.ibm.narpc.NaRPCServerGroup;
@@ -37,7 +37,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	
 	private NaRPCServerGroup<PutGetRequest, PutGetResponse> serverGroup;
 	private NaRPCServerEndpoint<PutGetRequest, PutGetResponse> serverEndpoint;
-	private CrailFS crailFS;
+	private CrailStore crailFS;
 	private CrailBuffer[] bufferList;
 	private ArrayBlockingQueue<CrailBuffer> pendingBuffers;
 	private ArrayBlockingQueue<Future<CrailResult>> pendingFutures;
@@ -48,7 +48,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		this.serverEndpoint = serverGroup.createServerEndpoint();
 		serverEndpoint.bind(address);	
 		CrailConfiguration conf = new CrailConfiguration();
-		this.crailFS = CrailFS.newInstance(conf);
+		this.crailFS = CrailStore.newInstance(conf);
 		this.bufferList = new CrailBuffer[bufferCount];
 		this.pendingBuffers = new ArrayBlockingQueue<CrailBuffer>(bufferCount);
 		this.pendingFutures = new ArrayBlockingQueue<Future<CrailResult>>(bufferCount);
@@ -94,7 +94,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		
 		RandomAccessFile _srcFile = new RandomAccessFile(srcFile, "rw");
 		FileChannel srcChannel = _srcFile.getChannel();		
-		CrailFile file = crailFS.create(dstFile, CrailNodeType.DATAFILE, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get().asFile();
+		CrailFile file = crailFS.create(dstFile, CrailNodeType.DATAFILE, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT, false).get().asFile();
 		file.syncDir();
 		CrailOutputStream dstChannel = file.getDirectOutputStream(0);
 		
@@ -214,7 +214,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 	private PutGetResponse create_dir(String srcFile) throws Exception{
 		LOG.info("CREATE DIR, srcFile " + srcFile);
 		
-		crailFS.create(srcFile, CrailNodeType.DIRECTORY, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT).get().syncDir();
+		crailFS.create(srcFile, CrailNodeType.DIRECTORY, CrailStorageClass.DEFAULT, CrailLocationClass.DEFAULT, true).get().syncDir();
 		
 		return PutGetResponse.OK;
 	}	
