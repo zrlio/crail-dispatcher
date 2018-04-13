@@ -20,25 +20,20 @@ def launch_dispatcher_from_lambda():
 def launch_dispatcher(crail_home_path):
   return 
 
-def connect():
+# TODO: add heuristics
+def register_job(pocket, jobid):
+  res = pocket.MakeDir(jobid)
+  if res != 0:
+    print("Error registering job!")
+  return res
+
+def connect(hostname, port):
   pocketHandle = libpocket.PocketDispatcher()
-  res = pocket.Initialize(HOSTNAME, PORT)
+  res = pocketHandle.Initialize(hostname, port)
   if res != 0:
     print("Connecting to metadata server failed!")
 
   return pocketHandle
-
- 
-def pack_msg(src_filename, dst_filename, ticket, cmd):
-  src_filename_len = len(src_filename) 
-  dst_filename_len = len(dst_filename)
-  msg_packer = struct.Struct("!iqhi" + str(src_filename_len) + "si" + str(dst_filename_len) + "s")
-  msg_len = 2 + 4 + src_filename_len + 4 + dst_filename_len
-
-  msg = (msg_len, ticket, cmd, src_filename_len, src_filename, dst_filename_len, dst_filename)
-  pkt = msg_packer.pack(*msg)
-
-  return pkt
 
 def put(pocket, src_filename, dst_filename, jobid, PERSIST_AFTER_JOB=False):  
   '''
