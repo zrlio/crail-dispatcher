@@ -14,6 +14,30 @@ from subprocess import call, Popen
 PORT = 2345
 HOSTNAME = "localhost"
 
+CONTROLLER_IP = "10.1.47.178"
+CONTROLLER_PORT = 4321
+
+MAX_DIR_DEPTH = 16
+
+INT = 4
+LONG = 8
+FLOAT = 4
+SHORT = 2
+BYTE = 1
+
+REQ_STRUCT_FORMAT = "!iqhhi" # msg_len (INT), ticket (LONG LONG), cmd (SHORT), cmd_type (SHORT), register_type (BYTE)
+REQ_LEN_HDR = SHORT + SHORT + INT # CMD, CMD_TYPE, IOCTL_OPCODE (note: doesn't include msg_len or ticket from NaRPC hdr)
+
+RESP_STRUCT_FORMAT = "!iqhhi" # msg_len (INT), ticket (LONG LONG), cmd (SHORT), error (SHORT), register_opcode (BYTE)
+RESP_LEN_BYTES = INT + LONG + SHORT + SHORT + INT # MSG_LEN, TICKET, CMD, ERROR, REGISTER_OPCODE 
+
+TICKET = 1000
+RPC_JOB_CMD = 14
+JOB_CMD = 14
+REGISTER_OPCODE = 0
+DEREGISTER_OPCODE = 1
+
+
 def launch_dispatcher_from_lambda():
   return 
 
@@ -21,11 +45,57 @@ def launch_dispatcher(crail_home_path):
   return 
 
 # TODO: add heuristics
-def register_job(pocket, jobid):
-  res = pocket.MakeDir(jobid)
-  if res != 0:
-    print("Error registering job!")
-  return res
+def register_job(jobname):
+  # connect to controller
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  sock.connect((CONTROLLER_IP, CONTROLLER_PORT))
+  #TODO: add hints
+
+  # send register request to controller
+  msg_packer = struct.Struct(REQ_STRUCT_FORMAT + "i" + str(len(jobname)) + "s") # len(jobname) (INT) + jobname (STRING)
+  msgLen = REQ_LEN_HDR + INT + len(jobname)
+  sampleMsg = (msgLen, TICKET, RPC_JOB_CMD, JOB_CMD, REGISTER_OPCODE, len(jobname), jobname)
+  pkt = msg_packer.pack(*sampleMsg)
+  sock.sendall(pkt)
+
+  # get jobid response
+  data = sock.recv(RESP_LEN_BYTES + INT)
+  resp_packer = struct.Struct(RESP_STRUCT_FORMAT + "i")
+  [length, ticket, type_, err, opcode, jobIdNum] = resp_packer.unpack(data)
+  if err != 0:
+    jobid = None
+    print("Error registering job: ", err)
+  else:
+    jobid = jobname + "-" + str(jobIdNum)
+    print("Registered jobid ", jobid)
+  sock.close()
+  return jobid
+ 
+
+def deregister_job(jobid):
+  # connect to controller
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  sock.connect((CONTROLLER_IP, CONTROLLER_PORT))
+  
+  # send register request to controller
+  msg_packer = struct.Struct(REQ_STRUCT_FORMAT + "i" + str(len(jobid)) + "s") # len(jobname) (INT) + jobname (STRING)
+  msgLen = REQ_LEN_HDR + INT + len(jobid)
+  sampleMsg = (msgLen, TICKET, RPC_JOB_CMD, JOB_CMD, DEREGISTER_OPCODE, len(jobid), jobid)
+  pkt = msg_packer.pack(*sampleMsg)
+  sock.sendall(pkt)
+
+  # get jobid response
+  data = sock.recv(RESP_LEN_BYTES)
+  resp_packer = struct.Struct(RESP_STRUCT_FORMAT)
+  [length, ticket, type_, err, opcode] = resp_packer.unpack(data)
+  if err != 0:
+    print("Error deregistering job: ", err)
+  else:
+    print("Successfully deregistered jobid ", jobid)
+  sock.close() 
+  return err
+
+
 
 def connect(hostname, port):
   pocketHandle = libpocket.PocketDispatcher()
@@ -82,6 +152,26 @@ def get(pocket, src_filename, dst_filename, jobid, DELETE_AFTER_READ=False):
   return res
 
 
+def lookup(pocket, src_filename, jobid):  
+  '''
+  Send a LOOKUP metadata request to Pocket to see if file exists
+
+  :param pocket:           pocketHandle returned from connect()
+  :param str src_filename: name of file/key in Pocket from which looking up
+  :param str jobid:        id unique to this job, used to separate keyspace for job
+  :return: the Pocket dispatcher response 
+  '''
+
+  get_filename = jobid + "/" + src_filename
+
+  res = pocket.Lookup(get_filename)
+  if res != 0:
+    print("LOOKUP failed!")
+
+  return res
+
+
+
 def delete(pocket, src_filename, jobid):  
   '''
   Send a DEL request to Pocket to delete key
@@ -97,7 +187,7 @@ def delete(pocket, src_filename, jobid):
   else:
     src_filename = jobid
 
-  res = pocket.DeleteFile(src_filename) #FIXME: or DeleteDir if want recursive delete always?? 
+  res = pocket.DeleteDir(src_filename) #FIXME: or DeleteDir if want recursive delete always?? 
   
   return res
 
