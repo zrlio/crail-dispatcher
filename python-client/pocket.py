@@ -122,7 +122,7 @@ def put(pocket, src_filename, dst_filename, jobid, PERSIST_AFTER_JOB=False):
   else:
     set_filename = jobid + "/" + dst_filename
 
-  res = pocket.PutFile(src_filename, set_filename)
+  res = pocket.PutFile(src_filename, set_filename, False)
 
   return res
 
