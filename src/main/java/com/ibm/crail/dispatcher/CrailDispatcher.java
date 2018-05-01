@@ -225,6 +225,12 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		crailFS.close();
 		
 		return PutGetResponse.OK;
+	}
+
+	public void addEndpoint(NaRPCServerChannel channel){
+	}
+
+	public void removeEndpoint(NaRPCServerChannel channel){
 	}	
 
 	public void run() throws Exception{
