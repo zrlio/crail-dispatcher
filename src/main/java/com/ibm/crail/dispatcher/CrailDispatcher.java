@@ -47,7 +47,7 @@ public class CrailDispatcher implements NaRPCService<PutGetRequest, PutGetRespon
 		this.serverGroup = new NaRPCServerGroup<PutGetRequest, PutGetResponse>(this, 16, 1024, true);
 		this.serverEndpoint = serverGroup.createServerEndpoint();
 		serverEndpoint.bind(address);	
-		CrailConfiguration conf = new CrailConfiguration();
+		CrailConfiguration conf = CrailConfiguration.createConfigurationFromFile();
 		this.crailFS = CrailStore.newInstance(conf);
 		this.bufferList = new CrailBuffer[bufferCount];
 		this.pendingBuffers = new ArrayBlockingQueue<CrailBuffer>(bufferCount);
